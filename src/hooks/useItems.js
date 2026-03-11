@@ -1,10 +1,10 @@
 import { useMemo, useCallback } from 'react';
-import { useLocalStorage } from './useLocalStorage';
+import { useFirestoreStorage } from './useFirestoreStorage';
 import { generateId } from '../utils/ids';
 import { STATUS, STORAGE_KEY } from '../utils/constants';
 
 export function useItems() {
-  const [items, setItems] = useLocalStorage(STORAGE_KEY, []);
+  const [items, setItems] = useFirestoreStorage(STORAGE_KEY, []);
 
   const inboxItems = useMemo(
     () => items.filter(i => i.status === STATUS.INBOX),

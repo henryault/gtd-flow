@@ -1,11 +1,11 @@
 import { useState, useCallback } from 'react';
-import { useLocalStorage } from '../hooks/useLocalStorage';
+import { useFirestoreStorage } from '../hooks/useFirestoreStorage';
 import { BulletEditor } from './BulletEditor';
 
 const NOTES_STORAGE_KEY = 'gtd-notes';
 
 export function NotesView() {
-  const [savedTree, setSavedTree] = useLocalStorage(NOTES_STORAGE_KEY, null);
+  const [savedTree, setSavedTree] = useFirestoreStorage(NOTES_STORAGE_KEY, null);
 
   // Initialize tree: use saved data or a single empty block
   const [initialTree] = useState(() => {

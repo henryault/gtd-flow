@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { useItemsContext } from '../context/ItemsContext';
+import { useAuth } from '../context/AuthContext';
 import { Badge } from './Badge';
 
 const NAV_ITEMS = [
@@ -10,6 +11,7 @@ const NAV_ITEMS = [
 
 export function NavBar({ currentView, onNavigate }) {
   const { inboxItems, exportData, importData } = useItemsContext();
+  const { signOut } = useAuth();
   const [showMenu, setShowMenu] = useState(false);
   const fileInputRef = useRef(null);
 
@@ -112,6 +114,13 @@ export function NavBar({ currentView, onNavigate }) {
               onChange={handleImport}
               className="hidden"
             />
+            <hr className="my-1 border-gray-100" />
+            <button
+              onClick={() => { signOut(); setShowMenu(false); }}
+              className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-50"
+            >
+              Sign out
+            </button>
           </div>
         )}
       </div>
