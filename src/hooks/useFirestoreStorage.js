@@ -7,14 +7,15 @@ import { useAuth } from '../context/AuthContext';
  * Drop-in replacement for useLocalStorage that syncs with Firestore.
  * Same API: useFirestoreStorage(key, initialValue) → [value, setValue]
  *
+ * - Writes to localStorage synchronously (instant local persistence)
+ * - Writes to Firestore debounced at 500ms (cross-device sync)
  * - Reads via onSnapshot (real-time cross-device sync)
- * - Writes debounced at 500ms to reduce Firestore operations
  * - Migrates existing localStorage data on first sign-in
  */
 export function useFirestoreStorage(key, initialValue) {
   const { user } = useAuth();
 
-  // Initialize from localStorage (for migration and pre-auth display)
+  // Initialize from localStorage for instant load
   const [value, setValue] = useState(() => {
     try {
       const item = window.localStorage.getItem(key);
@@ -30,7 +31,15 @@ export function useFirestoreStorage(key, initialValue) {
   const pendingWriteRef = useRef(null);
   const timerRef = useRef(null);
   const hasMigratedRef = useRef(false);
-  const initializedFromFirestoreRef = useRef(false);
+
+  // Write to localStorage synchronously (survives tab close)
+  const writeToLocalStorage = useCallback((val) => {
+    try {
+      window.localStorage.setItem(key, JSON.stringify(val));
+    } catch (err) {
+      console.warn('localStorage write error:', err);
+    }
+  }, [key]);
 
   // Flush pending write to Firestore
   const flush = useCallback(() => {
@@ -55,19 +64,19 @@ export function useFirestoreStorage(key, initialValue) {
     timerRef.current = setTimeout(flush, 500);
   }, [user, key, flush]);
 
-  // Custom setter that updates local state + triggers debounced Firestore write
+  // Custom setter: localStorage (sync) + Firestore (debounced)
   const setValueAndSync = useCallback((updater) => {
     setValue(prev => {
       const next = typeof updater === 'function' ? updater(prev) : updater;
+      writeToLocalStorage(next);
       writeToFirestore(next);
       return next;
     });
-  }, [writeToFirestore]);
+  }, [writeToLocalStorage, writeToFirestore]);
 
-  // Subscribe to Firestore changes (real-time sync)
+  // Subscribe to Firestore changes (real-time sync from other devices)
   useEffect(() => {
     if (!user) {
-      initializedFromFirestoreRef.current = false;
       hasMigratedRef.current = false;
       return;
     }
@@ -77,12 +86,12 @@ export function useFirestoreStorage(key, initialValue) {
     const unsubscribe = onSnapshot(docRef, (snapshot) => {
       if (snapshot.exists()) {
         const firestoreValue = snapshot.data().value;
-        // Only update if this isn't from our own pending write
+        // Only update from remote changes (not our own pending writes)
         if (!snapshot.metadata.hasPendingWrites) {
           setValue(firestoreValue);
           valueRef.current = firestoreValue;
+          writeToLocalStorage(firestoreValue);
         }
-        initializedFromFirestoreRef.current = true;
       } else if (!hasMigratedRef.current) {
         // Document doesn't exist — migrate from localStorage
         hasMigratedRef.current = true;
@@ -98,7 +107,6 @@ export function useFirestoreStorage(key, initialValue) {
         } catch {
           // localStorage read failed, use current value
         }
-        initializedFromFirestoreRef.current = true;
       }
     }, (err) => {
       console.warn('Firestore snapshot error:', err);
@@ -108,7 +116,7 @@ export function useFirestoreStorage(key, initialValue) {
       unsubscribe();
       flush();
     };
-  }, [user, key, flush]);
+  }, [user, key, flush, writeToLocalStorage]);
 
   // Flush on page unload
   useEffect(() => {
